@@ -6,13 +6,14 @@
 
 include $(TOPDIR)/rules.mk
 
-PKG_NAME:=luci-app-campusportal
 PKG_VERSION:=1.0.0
 PKG_RELEASE:=1
 
 LUCI_TITLE:=LuCI support for Campus Portal Login
 LUCI_DEPENDS:=+luci-compat +curl
 LUCI_PKGARCH:=all
+
+PKG_NAME:=luci-app-campusportal
 
 define Package/$(PKG_NAME)/conffiles
 /etc/config/campusportal

@@ -44,7 +44,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.sdk }}
-          path: bin/packages/x86_64/packages_ci/*.ipk
+          path: |
+            bin/packages/x86_64/packages_ci/*.ipk
+            bin/packages/x86_64/packages_ci/*.apk
 
   release:
     needs: build
