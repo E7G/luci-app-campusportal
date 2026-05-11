@@ -1,0 +1,302 @@
+<%
+local util = require "luci.util"
+local i18n = require "luci.i18n"
+local translate = i18n.translate
+-%>
+<%+header%>
+
+<style>
+:root {
+    --log-bg: #ffffff;
+    --log-text: #333333;
+    --log-border: #e0e0e0;
+    --log-header-bg: #f5f5f5;
+    --log-hover: #f0f0f0;
+    --tab-active: #2196F3;
+    --shadow: rgba(0,0,0,0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --log-bg: #1e1e1e;
+        --log-text: #d4d4d4;
+        --log-border: #3e3e3e;
+        --log-header-bg: #252525;
+        --log-hover: #2a2a2a;
+        --tab-active: #42A5F5;
+        --shadow: rgba(0,0,0,0.3);
+    }
+}
+
+.log-container {
+    background: var(--log-bg);
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 16px 0;
+    box-shadow: 0 4px 12px var(--shadow);
+    border: 1px solid var(--log-border);
+}
+
+.log-header {
+    background: var(--log-header-bg);
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--log-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.log-controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.log-btn {
+    padding: 8px 16px;
+    border: 1px solid var(--log-border);
+    background: var(--log-bg);
+    color: var(--log-text);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.3s;
+}
+
+.log-btn:hover {
+    background: var(--log-hover);
+    border-color: var(--tab-active);
+}
+
+.log-btn-primary {
+    background: var(--tab-active);
+    color: white;
+    border-color: var(--tab-active);
+}
+
+.log-btn-primary:hover {
+    opacity: 0.9;
+}
+
+.log-content {
+    background: var(--log-bg);
+    color: var(--log-text);
+    padding: 20px;
+    height: 500px;
+    overflow-y: auto;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.8;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.log-line {
+    margin: 2px 0;
+    padding: 4px 10px;
+    border-radius: 0;
+    transition: background 0.15s ease;
+}
+
+.log-line:hover {
+    background: var(--log-hover);
+}
+
+.log-empty {
+    text-align: center;
+    color: #9E9E9E;
+    padding: 60px 20px;
+    font-style: italic;
+    font-size: 14px;
+}
+
+.log-footer {
+    background: var(--log-header-bg);
+    padding: 8px 20px;
+    border-top: 1px solid var(--log-border);
+    font-size: 12px;
+    color: #757575;
+    text-align: right;
+}
+
+.log-content::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+.log-content::-webkit-scrollbar-track {
+    background: var(--log-header-bg);
+    border-radius: 5px;
+}
+
+.log-content::-webkit-scrollbar-thumb {
+    background: var(--log-border);
+    border-radius: 5px;
+}
+
+.log-content::-webkit-scrollbar-thumb:hover {
+    background: #757575;
+}
+
+@media (max-width: 768px) {
+    .log-header {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 12px 16px;
+    }
+
+    .log-controls {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .log-content {
+        height: 400px;
+        font-size: 12px;
+        padding: 16px;
+    }
+}
+</style>
+
+<div class="log-container">
+    <div class="log-header">
+        <div style="font-size:15px;font-weight:600;color:var(--log-text);"><%=translate("Campus Portal Logs")%></div>
+        <div class="log-controls">
+            <button class="log-btn log-btn-primary" id="auto_refresh_btn" onclick="toggleAutoRefresh()">
+                <%=translate("Stop Auto Refresh")%>
+            </button>
+            <button class="log-btn" onclick="clearLog()"><%=translate("Clear Logs")%></button>
+            <button class="log-btn" onclick="downloadLog()"><%=translate("Download Log")%></button>
+        </div>
+    </div>
+    <div class="log-content" id="log_content">
+        <div class="log-empty"><%=translate("Loading logs...")%></div>
+    </div>
+    <div class="log-footer" id="log_footer">
+        <span id="log_path_info">/tmp/campusportal.log</span>
+    </div>
+</div>
+
+<script type="text/javascript">
+//<![CDATA[
+var pollTimer = null;
+var autoRefreshEnabled = true;
+
+function escapeHtml(text) {
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(text));
+    return div.innerHTML;
+}
+
+function formatLogLine(line) {
+    if (!line || line.trim() === '') return '';
+    var level = 'INFO';
+    var content = escapeHtml(line.trim());
+
+    if (content.match(/ERROR/)) level = 'ERROR';
+    else if (content.match(/WARN/)) level = 'WARN';
+    else if (content.match(/success/i)) level = 'SUCCESS';
+
+    var color = '';
+    if (level === 'ERROR') color = 'color:#EF5350;';
+    else if (level === 'WARN') color = 'color:#FF9800;';
+    else if (level === 'SUCCESS') color = 'color:#4CAF50;';
+
+    return '<div class="log-line"><span style="' + color + '">' + content + '</span></div>';
+}
+
+function refreshLog() {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '<%=url("admin/services/campusportal/get_log")%>', true);
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4 && xhr.status === 200) {
+            var content = document.getElementById('log_content');
+            var rawLog = xhr.responseText || '';
+
+            if (rawLog.trim() === '') {
+                content.innerHTML = '<div class="log-empty"><%=translate("No logs available")%></div>';
+                return;
+            }
+
+            var lines = rawLog.split('\n');
+            var html = '';
+
+            for (var i = 0; i < lines.length; i++) {
+                var line = lines[i];
+                if (!line.trim()) continue;
+                html += formatLogLine(line);
+            }
+
+            content.innerHTML = html;
+
+            if (autoRefreshEnabled) {
+                content.scrollTop = content.scrollHeight;
+            }
+        }
+    };
+    xhr.send();
+}
+
+function clearLog() {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '<%=url("admin/services/campusportal/clear_log")%>', true);
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState === 4 && xhr.status === 200) {
+            document.getElementById('log_content').innerHTML = '<div class="log-empty"><%=translate("Logs cleared")%></div>';
+        }
+    };
+    xhr.send();
+}
+
+function downloadLog() {
+    var content = document.getElementById('log_content');
+    var logText = content.innerText || '';
+
+    var blob = new Blob([logText], {type: 'text/plain;charset=utf-8'});
+    var url = window.URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'campusportal-log.txt';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function() {
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+    }, 0);
+}
+
+function startPolling() {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(function() {
+        if (autoRefreshEnabled) {
+            refreshLog();
+        }
+    }, 3000);
+}
+
+function toggleAutoRefresh() {
+    autoRefreshEnabled = !autoRefreshEnabled;
+    var btn = document.getElementById('auto_refresh_btn');
+    if (autoRefreshEnabled) {
+        btn.textContent = '<%=translate("Stop Auto Refresh")%>';
+        btn.classList.add('log-btn-primary');
+    } else {
+        btn.textContent = '<%=translate("Start Auto Refresh")%>';
+        btn.classList.remove('log-btn-primary');
+    }
+}
+
+refreshLog();
+startPolling();
+
+window.addEventListener('beforeunload', function() {
+    if (pollTimer) clearInterval(pollTimer);
+});
+//]]>
+</script>
+
+<%+footer%>

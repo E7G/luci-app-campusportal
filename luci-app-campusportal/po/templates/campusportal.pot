@@ -1,0 +1,161 @@
+msgid ""
+msgstr ""
+
+msgid "Campus Portal"
+msgstr "校园网认证"
+
+msgid "Campus Portal Settings"
+msgstr "校园网认证设置"
+
+msgid "Campus Portal Status"
+msgstr "校园网认证状态"
+
+msgid "Configure campus network portal authentication parameters. This service monitors network connectivity and automatically re-authenticates when the captive portal is detected."
+msgstr "配置校园网门户认证参数。该服务会监控网络连接状态，并在检测到认证页面时自动重新认证。"
+
+msgid "Enable"
+msgstr "启用"
+
+msgid "Username"
+msgstr "用户名"
+
+msgid "Password"
+msgstr "密码"
+
+msgid "Service"
+msgstr "服务"
+
+msgid "Service field (usually left empty)"
+msgstr "Service 字段（通常留空）"
+
+msgid "Network Interface"
+msgstr "网络接口"
+
+msgid "Network interface for Macvlan multi-account, e.g. eth1"
+msgstr "网络接口（用于 Macvlan 多账号），例如 eth1"
+
+msgid "Captive Portal URL"
+msgstr "认证检测URL"
+
+msgid "URL that returns HTTP 204 when authenticated, used for connectivity detection"
+msgstr "已认证时返回 HTTP 204 的 URL，用于连通性检测"
+
+msgid "Monitor Interval (seconds)"
+msgstr "监控间隔（秒）"
+
+msgid "Max Retries"
+msgstr "最大重试次数"
+
+msgid "Retry Interval (seconds)"
+msgstr "重试间隔（秒）"
+
+msgid "User-Agent"
+msgstr "User-Agent"
+
+msgid "HTTP User-Agent header used for requests"
+msgstr "用于请求的 HTTP User-Agent 头"
+
+msgid "Status"
+msgstr "状态"
+
+msgid "Settings"
+msgstr "设置"
+
+msgid "Logs"
+msgstr "日志"
+
+msgid "Service Status"
+msgstr "服务状态"
+
+msgid "Running"
+msgstr "运行中"
+
+msgid "Stopped"
+msgstr "已停止"
+
+msgid "Connectivity"
+msgstr "网络连通性"
+
+msgid "Online"
+msgstr "已在线"
+
+msgid "Offline"
+msgstr "已离线"
+
+msgid "Service"
+msgstr "服务"
+
+msgid "Enabled"
+msgstr "已启用"
+
+msgid "Disabled"
+msgstr "已禁用"
+
+msgid "Interface"
+msgstr "接口"
+
+msgid "Uptime"
+msgstr "运行时长"
+
+msgid "Manual Login"
+msgstr "手动登录"
+
+msgid "Restart Service"
+msgstr "重启服务"
+
+msgid "Enable/Disable"
+msgstr "启用/禁用"
+
+msgid "Collecting data..."
+msgstr "正在获取数据..."
+
+msgid "Attempting login..."
+msgstr "正在尝试登录..."
+
+msgid "Login successful!"
+msgstr "登录成功！"
+
+msgid "Login failed: "
+msgstr "登录失败："
+
+msgid "Login failed"
+msgstr "登录失败"
+
+msgid "Request failed"
+msgstr "请求失败"
+
+msgid "Restarting service..."
+msgstr "正在重启服务..."
+
+msgid "Service restarted"
+msgstr "服务已重启"
+
+msgid "Toggling service..."
+msgstr "正在切换服务..."
+
+msgid "Campus Portal Logs"
+msgstr "校园网认证日志"
+
+msgid "Stop Auto Refresh"
+msgstr "停止自动刷新"
+
+msgid "Start Auto Refresh"
+msgstr "开启自动刷新"
+
+msgid "Clear Logs"
+msgstr "清除日志"
+
+msgid "Download Log"
+msgstr "下载日志"
+
+msgid "Loading logs..."
+msgstr "加载日志中..."
+
+msgid "No logs available"
+msgstr "暂无日志"
+
+msgid "Logs cleared"
+msgstr "日志已清除"
+
+msgid "Grant UCI access for luci-app-campusportal"
+msgstr "授予UCI访问luci-app-campusportal的权限"

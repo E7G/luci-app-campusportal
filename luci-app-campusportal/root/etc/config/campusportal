@@ -1,0 +1,11 @@
+config campusportal
+	option enabled '0'
+	option username ''
+	option password ''
+	option service ''
+	option interface 'eth1'
+	option monitor_interval '60'
+	option retry_max '3'
+	option retry_sleep '2'
+	option captive_url 'http://www.google.cn/generate_204'
+	option user_agent 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.91 Safari/537.36'

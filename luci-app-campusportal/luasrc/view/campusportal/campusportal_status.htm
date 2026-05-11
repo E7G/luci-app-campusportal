@@ -1,0 +1,380 @@
+<%
+local uci = require 'luci.model.uci'.cursor()
+local util = require "luci.util"
+local i18n = require "luci.i18n"
+local translate = i18n.translate
+-%>
+
+<style>
+:root {
+    --card-bg: #ffffff;
+    --card-shadow: rgba(0,0,0,0.08);
+    --text-primary: #333333;
+    --text-secondary: #666666;
+    --border-color: #e0e0e0;
+    --success: #4CAF50;
+    --error: #F44336;
+    --info: #2196F3;
+    --warning: #FF9800;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --card-bg: #1e1e1e;
+        --card-shadow: rgba(0,0,0,0.3);
+        --text-primary: #e0e0e0;
+        --text-secondary: #b0b0b0;
+        --border-color: #3e3e3e;
+        --success: #66BB6A;
+        --error: #EF5350;
+        --info: #42A5F5;
+        --warning: #FFB74D;
+    }
+}
+
+.cp-status-card {
+    background: var(--card-bg);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 8px var(--card-shadow);
+    border: 1px solid var(--border-color);
+    margin: 16px 0;
+}
+
+.cp-service-section {
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.cp-service-section:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.cp-service-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.cp-service-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.cp-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.cp-status-running {
+    background: rgba(76, 175, 80, 0.1);
+    color: var(--success);
+}
+
+.cp-status-stopped {
+    background: rgba(244, 67, 54, 0.1);
+    color: var(--error);
+}
+
+.cp-status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+}
+
+.cp-status-running .cp-status-dot {
+    background: var(--success);
+}
+
+.cp-status-stopped .cp-status-dot {
+    background: var(--error);
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.cp-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+}
+
+.cp-metric-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+.cp-metric-icon {
+    flex-shrink: 0;
+}
+
+.cp-metric-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.cp-metric-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-bottom: 2px;
+}
+
+.cp-metric-value {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.cp-empty {
+    text-align: center;
+    color: var(--text-secondary);
+    padding: 20px 12px;
+    font-size: 13px;
+    font-style: italic;
+}
+
+.cp-btn {
+    display: inline-block;
+    padding: 6px 14px;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+    transition: all 0.2s;
+    text-decoration: none;
+}
+
+.cp-btn:hover {
+    opacity: 0.9;
+}
+
+.cp-btn-primary {
+    background: var(--info);
+}
+
+.cp-btn-success {
+    background: var(--success);
+}
+
+.cp-btn-warning {
+    background: var(--warning);
+}
+
+.cp-btn-danger {
+    background: var(--error);
+}
+
+.cp-toast {
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: white;
+    padding: 14px 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    z-index: 10001;
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out;
+    font-size: 14px;
+    font-weight: 500;
+    min-width: 320px;
+    text-align: center;
+    pointer-events: none;
+}
+
+.cp-toast.show {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.cp-toast-success {
+    background: var(--success);
+}
+
+.cp-toast-error {
+    background: var(--error);
+}
+
+.cp-toast-info {
+    background: var(--info);
+}
+
+@media (max-width: 768px) {
+    .cp-status-card {
+        padding: 16px;
+    }
+
+    .cp-metrics-grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+
+<div class="cp-status-card" id="campusportal_status">
+    <div class="cp-empty"><%=translate("Collecting data...")%></div>
+</div>
+
+<div style="display:flex;gap:12px;flex-wrap:wrap;margin:16px 0;">
+    <button class="cp-btn cp-btn-success" id="loginBtn" onclick="manualLogin(); return false;" disabled>
+        <%=translate("Manual Login")%>
+    </button>
+    <button class="cp-btn cp-btn-primary" id="restartBtn" onclick="restartService(); return false;" disabled>
+        <%=translate("Restart Service")%>
+    </button>
+    <button class="cp-btn cp-btn-warning" id="enableBtn" onclick="toggleService(); return false;" disabled>
+        <%=translate("Enable/Disable")%>
+    </button>
+</div>
+
+<script type="text/javascript">//<![CDATA[
+function createSVGIcon(type, color) {
+    var icons = {
+        connectivity: '<svg width="36" height="36" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" stroke="' + color + '" stroke-width="2" fill="none"/><path d="M12 6v6l4 2" stroke="' + color + '" stroke-width="2" stroke-linecap="round"/></svg>',
+        interface: '<svg width="36" height="36" viewBox="0 0 24 24" fill="none"><rect x="3" y="6" width="18" height="12" rx="2" stroke="' + color + '" stroke-width="2" fill="none"/><path d="M7 10h10M7 14h4" stroke="' + color + '" stroke-width="1.5" stroke-linecap="round"/></svg>',
+        uptime: '<svg width="36" height="36" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="' + color + '" stroke-width="2" fill="none"/><path d="M12 7v5l3 3" stroke="' + color + '" stroke-width="2" stroke-linecap="round"/></svg>',
+        service: '<svg width="36" height="36" viewBox="0 0 24 24" fill="none"><path d="M9 12h6M12 9v6" stroke="' + color + '" stroke-width="2" stroke-linecap="round"/><rect x="3" y="3" width="18" height="18" rx="2" stroke="' + color + '" stroke-width="2" fill="none"/></svg>'
+    };
+    return icons[type] || '';
+}
+
+function showToast(message, type) {
+    var toast = document.getElementById('cpToast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'cpToast';
+        toast.className = 'cp-toast';
+        document.body.appendChild(toast);
+    }
+    toast.className = 'cp-toast cp-toast-' + (type || 'info');
+    toast.textContent = message;
+    toast.classList.add('show');
+    setTimeout(function() {
+        toast.classList.remove('show');
+    }, 3000);
+}
+
+function updateStatus(data) {
+    var container = document.getElementById('campusportal_status');
+    if (!data || !container) return;
+
+    var colors = getComputedStyle(document.documentElement);
+    var html = '';
+
+    html += '<div class="cp-service-section">';
+    html += '<div class="cp-service-header">';
+    html += '<div class="cp-service-title"><%=translate("Service Status")%></div>';
+    html += '<div class="cp-status-badge ' + (data.running ? 'cp-status-running' : 'cp-status-stopped') + '">';
+    html += '<span class="cp-status-dot"></span>';
+    html += data.running ? '<%=translate("Running")%>' : '<%=translate("Stopped")%>';
+    html += '</div></div>';
+
+    html += '<div class="cp-metrics-grid">';
+
+    html += '<div class="cp-metric-item">';
+    html += '<div class="cp-metric-icon">' + createSVGIcon('connectivity', data.online ? colors.getPropertyValue('--success').trim() : colors.getPropertyValue('--error').trim()) + '</div>';
+    html += '<div class="cp-metric-info">';
+    html += '<div class="cp-metric-label"><%=translate("Connectivity")%></div>';
+    html += '<div class="cp-metric-value">' + (data.online ? '<%=translate("Online")%>' : '<%=translate("Offline")%>') + '</div>';
+    html += '</div></div>';
+
+    html += '<div class="cp-metric-item">';
+    html += '<div class="cp-metric-icon">' + createSVGIcon('service', colors.getPropertyValue('--info').trim()) + '</div>';
+    html += '<div class="cp-metric-info">';
+    html += '<div class="cp-metric-label"><%=translate("Service")%></div>';
+    html += '<div class="cp-metric-value">' + (data.enabled ? '<%=translate("Enabled")%>' : '<%=translate("Disabled")%>') + '</div>';
+    html += '</div></div>';
+
+    html += '<div class="cp-metric-item">';
+    html += '<div class="cp-metric-icon">' + createSVGIcon('interface', colors.getPropertyValue('--info').trim()) + '</div>';
+    html += '<div class="cp-metric-info">';
+    html += '<div class="cp-metric-label"><%=translate("Interface")%></div>';
+    html += '<div class="cp-metric-value">' + (data.interface || '-') + '</div>';
+    html += '</div></div>';
+
+    html += '<div class="cp-metric-item">';
+    html += '<div class="cp-metric-icon">' + createSVGIcon('uptime', colors.getPropertyValue('--info').trim()) + '</div>';
+    html += '<div class="cp-metric-info">';
+    html += '<div class="cp-metric-label"><%=translate("Uptime")%></div>';
+    html += '<div class="cp-metric-value">' + (data.uptime || '-') + '</div>';
+    html += '</div></div>';
+
+    html += '</div>';
+    html += '</div>';
+
+    container.innerHTML = html;
+
+    document.getElementById('loginBtn').disabled = false;
+    document.getElementById('restartBtn').disabled = false;
+    document.getElementById('enableBtn').disabled = false;
+}
+
+function manualLogin() {
+    showToast('<%=translate("Attempting login...")%>', 'info');
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '<%=url("admin", "services", "campusportal", "api_login")%>', true);
+    xhr.onload = function() {
+        if (xhr.status === 200) {
+            try {
+                var data = JSON.parse(xhr.responseText);
+                if (data.success) {
+                    showToast('<%=translate("Login successful!")%>', 'success');
+                } else {
+                    showToast('<%=translate("Login failed: ")%>' + (data.message || ''), 'error');
+                }
+            } catch (e) {
+                showToast('<%=translate("Login failed")%>', 'error');
+            }
+        } else {
+            showToast('<%=translate("Request failed")%>', 'error');
+        }
+    };
+    xhr.onerror = function() {
+        showToast('<%=translate("Request failed")%>', 'error');
+    };
+    xhr.send();
+}
+
+function restartService() {
+    showToast('<%=translate("Restarting service...")%>', 'info');
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '<%=url("admin", "services", "campusportal", "config")%>?restart=1', true);
+    xhr.onload = function() {
+        showToast('<%=translate("Service restarted")%>', 'success');
+    };
+    xhr.onerror = function() {
+        showToast('<%=translate("Request failed")%>', 'error');
+    };
+    xhr.send();
+}
+
+function toggleService() {
+    showToast('<%=translate("Toggling service...")%>', 'info');
+
+    window.location.href = '<%=url("admin", "services", "campusportal", "config")%>';
+}
+
+XHR.poll(5, '<%=url("admin", "services", "campusportal", "api_status")%>', null, function(x, data) {
+    updateStatus(data);
+});
+//]]></script>

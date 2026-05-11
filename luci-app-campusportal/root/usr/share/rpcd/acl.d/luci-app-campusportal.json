@@ -1,0 +1,11 @@
+{
+  "luci-app-campusportal": {
+    "description": "Grant UCI access for luci-app-campusportal",
+    "read": {
+      "uci": [ "campusportal" ]
+    },
+    "write": {
+      "uci": [ "campusportal" ]
+    }
+  }
+}

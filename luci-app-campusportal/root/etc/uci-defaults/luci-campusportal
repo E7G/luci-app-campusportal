@@ -1,0 +1,13 @@
+#!/bin/sh
+
+uci -q batch <<-EOF >/dev/null
+	delete ucitrack.@campusportal[-1]
+	add ucitrack campusportal
+	set ucitrack.@campusportal[-1].init=campusportal
+	commit ucitrack
+EOF
+
+chmod +x /etc/init.d/campusportal
+/etc/init.d/campusportal enable
+rm -rf /tmp/luci-indexcache /tmp/luci-modulecache
+exit 0
