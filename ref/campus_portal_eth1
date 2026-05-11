@@ -1,0 +1,176 @@
+#!/bin/sh /etc/rc.common
+# campus portal login as an init.d service for OpenWrt (with procd monitor)
+
+START=95
+STOP=10
+USE_PROCD=1
+
+#  配置区
+USER_ID=""          # 用户名
+PASSWORD=""         # 密码
+SERVICE=""          # Service 字段（通常为空）
+INTERFACE="eth1"    # 网络接口（用于 Macvlan 多账号）
+MONITOR_INTERVAL=60 # 监控间隔（秒）
+RETRY_MAX=3         # 断线后重试次数
+RETRY_SLEEP=2       # 重试间隔（秒）
+
+# 在线检测 URL（必须返回 204 表示已认证）
+CAPTIVE_URL="http://www.google.cn/generate_204"
+
+# User-Agent
+CURL_UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/61.0.3163.91 Safari/537.36"
+
+# curl 通用选项（超时、接口绑定）
+CURL_OPTS="-fsS --connect-timeout 5 --max-time 10 --interface $INTERFACE"
+
+# 扩展命令
+EXTRA_COMMANDS="login sstatus"
+EXTRA_HELP="        login   Run a one-shot portal login now
+        sstatus  Print current connectivity/portal status"
+
+# ========== 功能函数 ==========
+
+# 检测是否已在线（通过 HTTP 状态码 204）
+is_online() {
+    local http_code
+    http_code=$(curl -s -I -m 10 -o /dev/null -w "%{http_code}" --interface "$INTERFACE" "$CAPTIVE_URL" 2>/dev/null)
+    [ "$http_code" = "204" ]
+}
+
+# 一次性登录流程（完全采用锐捷脚本逻辑）
+do_login_once() {
+    echo "[campus_portal_eth1] Probing connectivity..."
+    if is_online; then
+        echo "[campus_portal_eth1] Already online."
+        return 0
+    fi
+
+    echo "[campus_portal_eth1] Not online, fetching portal redirect page..."
+    # 获取重定向页面内容（通常是一段 JavaScript，包含 loginPageURL）
+    local portal_content
+    portal_content=$(curl $CURL_OPTS "$CAPTIVE_URL" -A "$CURL_UA" 2>/dev/null || true)
+    if [ -z "$portal_content" ]; then
+        echo "[campus_portal_eth1] ERROR: empty response from $CAPTIVE_URL"
+        return 1
+    fi
+
+    # 提取 loginPageURL（从单引号中取出 URL）
+    local loginPageURL
+    loginPageURL=$(echo "$portal_content" | awk -F \' '{print $2}')
+    if [ -z "$loginPageURL" ]; then
+        echo "[campus_portal_eth1] ERROR: failed to extract loginPageURL"
+        return 1
+    fi
+    echo "[campus_portal_eth1] Got loginPageURL: $loginPageURL"
+
+    # 提取 queryString（问号后的部分）
+    local queryString
+    queryString=$(echo "$loginPageURL" | awk -F '?' '{print $2}')
+    if [ -z "$queryString" ]; then
+        echo "[campus_portal_eth1] ERROR: no queryString in loginPageURL"
+        return 1
+    fi
+
+    # 对 & 和 = 进行二次编码（锐捷专用）
+    queryString="${queryString//&/%2526}"
+    queryString="${queryString//=/%253D}"
+    echo "[campus_portal_eth1] Processed queryString (len=${#queryString})"
+
+    # 构造最终的登录 API URL
+    local loginURL
+    loginURL=$(echo "$loginPageURL" | awk -F '?' '{print $1}')
+    loginURL="${loginURL/index.jsp/InterFace.do?method=login}"
+    echo "[campus_portal_eth1] Login URL: $loginURL"
+
+    # 构造 POST 数据
+    local post_data
+    post_data="userId=$USER_ID&password=$PASSWORD&service=$SERVICE&queryString=$queryString&operatorPwd=&operatorUserId=&validcode=&passwordEncrypt=false"
+
+    echo "[campus_portal_eth1] Logging in..."
+    local login_json
+    login_json=$(curl $CURL_OPTS -X POST "$loginURL" \
+        -H "User-Agent: $CURL_UA" \
+        -H "Referer: $loginPageURL" \
+        -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8" \
+        -H "Content-Type: application/x-www-form-urlencoded; charset=UTF-8" \
+        --data "$post_data" 2>/dev/null || true)
+
+    if echo "$login_json" | grep -q '"result":"success"'; then
+        echo "[campus_portal_eth1] Login success."
+        return 0
+    else
+        echo "[campus_portal_eth1] Login failed."
+        echo "$login_json" | sed -n 's/.*"message":"\([^"]*\)".*/[campus_portal_eth1] reason: \1/p'
+        return 2
+    fi
+}
+
+# ========== procd 监控循环（生成脚本） ==========
+_monitor_loop() {
+    cat <<EOF
+MONITOR_INTERVAL=${MONITOR_INTERVAL}
+RETRY_MAX=${RETRY_MAX}
+RETRY_SLEEP=${RETRY_SLEEP}
+CAPTIVE_URL="${CAPTIVE_URL}"
+CURL_UA="${CURL_UA}"
+INTERFACE="${INTERFACE}"
+
+is_online() {
+    http_code=\$(curl -s -I -m 10 -o /dev/null -w "%{http_code}" --interface "\$INTERFACE" "\$CAPTIVE_URL" 2>/dev/null)
+    [ "\$http_code" = "204" ]
+}
+
+while true; do
+    if is_online; then
+        sleep "\$MONITOR_INTERVAL"
+        continue
+    fi
+
+    echo "[campus_portal_eth1] offline detected, trying to login..."
+    tries=1
+    rc=1
+    while [ "\$tries" -le "\$RETRY_MAX" ]; do
+        /etc/init.d/campus_portal_eth1 login && { rc=0; break; }
+        sleep "\$RETRY_SLEEP"
+        tries=\$((tries+1))
+    done
+    if [ "\$rc" -ne 0 ]; then
+        echo "[campus_portal_eth1] auto-login failed after \$RETRY_MAX tries."
+    fi
+    sleep "\$MONITOR_INTERVAL"
+done
+EOF
+}
+
+# ========== procd 服务接口 ==========
+start_service() {
+    procd_open_instance
+    procd_set_param command /bin/sh -c "$(_monitor_loop)"
+    procd_set_param respawn 5 1 60   # 异常退出自动重启
+    procd_set_param stdout 1
+    procd_set_param stderr 1
+    procd_close_instance
+}
+
+stop_service() {
+    return 0
+}
+
+reload_service() {
+    stop
+    start
+}
+
+service_triggers() {
+    procd_add_reload_trigger "network" "wireless"
+}
+
+# 手动命令
+login() { do_login_once; }
+sstatus() {
+    if is_online; then
+        echo "[campus_portal_eth1] Online"
+    else
+        echo "[campus_portal_eth1] Offline"
+    fi
+}
